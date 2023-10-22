@@ -7,7 +7,7 @@ This an Artisan market place where users can:
 3. View an artisan details.
 
 ## Click the link below to see live Demo
-[Artisan Place]()
+[Artisan Place](https://kenkaboshcodes.github.io/dacade-marketplace/)
 
 ## Usage
 
