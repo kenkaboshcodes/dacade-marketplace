@@ -3,7 +3,7 @@
 ## Description
 This an Artisan market place where users can:
 1. Hire and sell their artisan skill products on the celo Blockchain.
-2. Apply a coupon code o e discoun o 30%.
+2. Apply a coupon code to get discount of 30%.
 3. View an artisan details.
 
 ## Click the link below to see live Demo
