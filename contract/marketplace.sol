@@ -1,26 +1,17 @@
 // SPDX-License-Identifier: MIT
-
-pragma solidity >=0.7.0 <0.9.0;
+pragma solidity ^0.8.0;
 
 interface IERC20Token {
-  function transfer(address, uint256) external returns (bool);
-  function approve(address, uint256) external returns (bool);
-  function transferFrom(address, address, uint256) external returns (bool);
-  function totalSupply() external view returns (uint256);
-  function balanceOf(address) external view returns (uint256);
-  function allowance(address, address) external view returns (uint256);
-
-  event Transfer(address indexed from, address indexed to, uint256 value);
-  event Approval(address indexed owner, address indexed spender, uint256 value);
+    function transfer(address recipient, uint256 amount) external returns (bool);
+    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+    function balanceOf(address account) external view returns (uint256);
 }
 
 contract Marketplace {
-
-    uint internal artisansLength = 0;
-    address internal cUsdTokenAddress = 0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1;
-
-    // Fixed sized array, all elements initialize to 0
-    string[5] public couponCodes = ["35ty6", "78utr","uy789", "poy71", "9081a"];
+    address public owner;
+    uint public artisansLength;
+    address public cUsdTokenAddress;
+    uint public gasPrice;
 
     struct Artisan {
         address payable owner;
@@ -30,19 +21,38 @@ contract Marketplace {
         string location;
         uint price;
         uint sold;
+        bool active;
     }
 
+    mapping(uint => Artisan) public artisans;
 
-    mapping (uint => Artisan) internal artisans;
+    event ArtisanAdded(address indexed owner, string name, uint price);
+    event ArtisanHired(address indexed buyer, address indexed artisanOwner, string artisanName, uint price);
+    event ArtisanRemoved(address indexed owner, string name);
 
-    function writeArtisan(
+    constructor(address _cUsdTokenAddress) {
+        owner = msg.sender;
+        cUsdTokenAddress = _cUsdTokenAddress;
+        gasPrice = 1000000000; // Default gas price in wei (1 Gwei)
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only the contract owner can call this function");
+        _;
+    }
+
+    function setGasPrice(uint _gasPrice) public onlyOwner {
+        gasPrice = _gasPrice;
+    }
+
+    function addArtisan(
         string memory _name,
         string memory _image,
-        string memory _description, 
-        string memory _location, 
+        string memory _description,
+        string memory _location,
         uint _price
     ) public {
-        uint _sold = 0;
+        require(_price > 0, "Price must be greater than zero");
         artisans[artisansLength] = Artisan(
             payable(msg.sender),
             _name,
@@ -50,61 +60,47 @@ contract Marketplace {
             _description,
             _location,
             _price,
-            _sold
+            0,
+            true
         );
         artisansLength++;
+        emit ArtisanAdded(msg.sender, _name, _price);
     }
 
-    function readArtisan(uint _index) public view returns (
-        address payable,
-        string memory, 
-        string memory, 
-        string memory, 
-        string memory, 
-        uint, 
-        uint
-    ) {
-        return (
-            artisans[_index].owner,
-            artisans[_index].name, 
-            artisans[_index].image, 
-            artisans[_index].description, 
-            artisans[_index].location, 
-            artisans[_index].price,
-            artisans[_index].sold
-        );
+    function removeArtisan(uint _index) public {
+        require(_index < artisansLength, "Invalid artisan index");
+        require(artisans[_index].owner == msg.sender, "Only the artisan owner can remove it");
+        artisans[_index].active = false;
+        emit ArtisanRemoved(msg.sender, artisans[_index].name);
     }
 
-    function hireArtisan(uint _index) public payable  {
-        require(
-          IERC20Token(cUsdTokenAddress).transferFrom(
-            msg.sender,
-            artisans[_index].owner,
-            artisans[_index].price
-          ),
-          "Transfer failed."
-        );
-        artisans[_index].sold++;
+    function hireArtisan(uint _index) public payable {
+        require(_index < artisansLength, "Invalid artisan index");
+        Artisan storage artisan = artisans[_index];
+        require(artisan.active, "Artisan is not available");
+        require(msg.value >= gasPrice * 21000, "Insufficient ether for gas");
+
+        uint totalPayment = artisan.price;
+        uint refundAmount = msg.value - totalPayment;
+        artisan.sold++;
+        artisan.owner.transfer(totalPayment);
+        msg.sender.transfer(refundAmount);
+
+        emit ArtisanHired(msg.sender, artisan.owner, artisan.name, artisan.price);
     }
 
-    function hireArtisanForDiscount(uint _index) public payable  {
-        require(
-          IERC20Token(cUsdTokenAddress).transferFrom(
-            msg.sender,
-            artisans[_index].owner,
-            artisans[_index].price*70/100
-          ),
-          "Transfer failed."
-        );
-        artisans[_index].sold++;
-    }
-    
-    
-    function getArtisansLength() public view returns (uint) {
-        return (artisansLength);
-    }
+    function hireArtisanForDiscount(uint _index) public payable {
+        require(_index < artisansLength, "Invalid artisan index");
+        Artisan storage artisan = artisans[_index];
+        require(artisan.active, "Artisan is not available");
+        require(msg.value >= gasPrice * 21000, "Insufficient ether for gas");
 
-    function getCouponCodes() public view returns (string[5] memory) {
-        return (couponCodes);
+        uint totalPayment = (artisan.price * 70) / 100;
+        uint refundAmount = msg.value - totalPayment;
+        artisan.sold++;
+        artisan.owner.transfer(totalPayment);
+        msg.sender.transfer(refundAmount);
+
+        emit ArtisanHired(msg.sender, artisan.owner, artisan.name, totalPayment);
     }
 }
