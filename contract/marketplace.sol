@@ -2,25 +2,23 @@
 
 pragma solidity >=0.7.0 <0.9.0;
 
-interface IERC20Token {
-  function transfer(address, uint256) external returns (bool);
-  function approve(address, uint256) external returns (bool);
-  function transferFrom(address, address, uint256) external returns (bool);
-  function totalSupply() external view returns (uint256);
-  function balanceOf(address) external view returns (uint256);
-  function allowance(address, address) external view returns (uint256);
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-  event Transfer(address indexed from, address indexed to, uint256 value);
-  event Approval(address indexed owner, address indexed spender, uint256 value);
+interface IERC20Token {
+    function transfer(address recipient, uint256 amount) external returns (bool);
+    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+    function allowance(address owner, address spender) external view returns (uint256);
+    function balanceOf(address account) external view returns (uint256);
 }
 
-contract Marketplace {
+contract Marketplace is Ownable, ReentrancyGuard {
+    using SafeMath for uint256;
 
-    uint internal artisansLength = 0;
-    address internal cUsdTokenAddress = 0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1;
+    address internal cUsdTokenAddress;
 
-    // Fixed sized array, all elements initialize to 0
-    string[5] public couponCodes = ["35ty6", "78utr","uy789", "poy71", "9081a"];
+    string[5] public couponCodes;
 
     struct Artisan {
         address payable owner;
@@ -32,79 +30,76 @@ contract Marketplace {
         uint sold;
     }
 
+    uint public artisansLength;
+    mapping (uint => Artisan) public artisans;
 
-    mapping (uint => Artisan) internal artisans;
+    event ArtisanAdded(address indexed owner, string name, string image, uint indexed index);
+    event ArtisanHired(uint indexed index, address indexed buyer, uint price, uint discountPrice, uint sold);
 
-    function writeArtisan(
+    constructor(address _tokenAddress) {
+        cUsdTokenAddress = _tokenAddress;
+    }
+
+    function setTokenAddress(address _tokenAddress) external onlyOwner {
+        cUsdTokenAddress = _tokenAddress;
+    }
+
+    function addArtisan(
         string memory _name,
         string memory _image,
-        string memory _description, 
-        string memory _location, 
+        string memory _description,
+        string memory _location,
         uint _price
-    ) public {
-        uint _sold = 0;
-        artisans[artisansLength] = Artisan(
-            payable(msg.sender),
-            _name,
-            _image,
-            _description,
-            _location,
-            _price,
-            _sold
-        );
+    ) external {
+        require(_price > 0, "Price must be greater than zero");
+
+        artisans[artisansLength] = Artisan({
+            owner: payable(msg.sender),
+            name: _name,
+            image: _image,
+            description: _description,
+            location: _location,
+            price: _price,
+            sold: 0
+        });
+
+        emit ArtisanAdded(msg.sender, _name, _image, artisansLength);
         artisansLength++;
     }
 
-    function readArtisan(uint _index) public view returns (
-        address payable,
-        string memory, 
-        string memory, 
-        string memory, 
-        string memory, 
-        uint, 
-        uint
-    ) {
-        return (
-            artisans[_index].owner,
-            artisans[_index].name, 
-            artisans[_index].image, 
-            artisans[_index].description, 
-            artisans[_index].location, 
-            artisans[_index].price,
-            artisans[_index].sold
-        );
+    function hireArtisan(uint _index) external nonReentrant {
+        Artisan storage artisan = artisans[_index];
+        require(artisan.owner != address(0), "Artisan does not exist");
+        require(artisan.price > 0, "Invalid price");
+
+        uint priceToPay = artisan.price;
+        require(transferTokens(msg.sender, artisan.owner, priceToPay), "Transfer failed");
+
+        artisan.sold++;
+        emit ArtisanHired(_index, msg.sender, artisan.price, priceToPay, artisan.sold);
     }
 
-    function hireArtisan(uint _index) public payable  {
-        require(
-          IERC20Token(cUsdTokenAddress).transferFrom(
-            msg.sender,
-            artisans[_index].owner,
-            artisans[_index].price
-          ),
-          "Transfer failed."
-        );
-        artisans[_index].sold++;
+    function hireArtisanForDiscount(uint _index) external nonReentrant {
+        Artisan storage artisan = artisans[_index];
+        require(artisan.owner != address(0), "Artisan does not exist");
+        require(artisan.price > 0, "Invalid price");
+
+        uint discountPrice = artisan.price.mul(70).div(100);
+        require(transferTokens(msg.sender, artisan.owner, discountPrice), "Transfer failed");
+
+        artisan.sold++;
+        emit ArtisanHired(_index, msg.sender, artisan.price, discountPrice, artisan.sold);
     }
 
-    function hireArtisanForDiscount(uint _index) public payable  {
-        require(
-          IERC20Token(cUsdTokenAddress).transferFrom(
-            msg.sender,
-            artisans[_index].owner,
-            artisans[_index].price*70/100
-          ),
-          "Transfer failed."
-        );
-        artisans[_index].sold++;
-    }
-    
-    
-    function getArtisansLength() public view returns (uint) {
-        return (artisansLength);
+    function getArtisansLength() external view returns (uint) {
+        return artisansLength;
     }
 
-    function getCouponCodes() public view returns (string[5] memory) {
-        return (couponCodes);
+    function getCouponCodes() external view returns (string[5] memory) {
+        return couponCodes;
+    }
+
+    function transferTokens(address _from, address _to, uint _amount) internal returns (bool) {
+        return IERC20Token(cUsdTokenAddress).transferFrom(_from, _to, _amount);
     }
 }
