@@ -47,24 +47,28 @@
 
   <body>
     <div class="container mt-2" style="max-width: 72em">
-
+      <!-- start of navbar -->
       <nav class="navbar bg-white navbar-light">
         <div class="container-fluid">
           <span class="navbar-brand m-0 h4 fw-bold">Artisan Place</span>
+          <!-- start coupon code field -->
           <form class="d-flex">
             <input class="form-control me-2 couponcode" type="search" placeholder="Enter coupon code" aria-label="Search">
             <button class="btn btn-outline-success w-100 couponbutton" type="submit">Apply Discount</button>
           </form>
+          <!-- end of coupon code field -->
           <span class="nav-link border rounded-pill bg-light">
             <span id="balance">0</span>
             cUSD
           </span>
         </div>
       </nav>
-
+      <!-- end of navbar -->
+      <!-- start of loading notification -->
       <div class="alert alert-warning sticky-top mt-2" role="alert">
         <span id="notification">⌛ Loading...</span>
       </div>
+      <!-- end of loading notification -->
   
       <div class="mb-4" style="margin-top: 4em">
         <a
