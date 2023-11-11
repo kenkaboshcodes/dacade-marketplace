@@ -5,10 +5,12 @@ import marketplaceAbi from "../contract/marketplace.abi.json"
 import erc20Abi from "../contract/erc20.abi.json"
 
 const ERC20_DECIMALS = 18
-const MPContractAddress = "0x4feFd31D24d9865DA1BC92db92E2d3FF3E6151C4"
+const MPContractAddress = "0xC98020014398627ceA3D3f06bC12F5C04F94a976"
 const cUSDContractAddress = "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1"
 
+//gets coupon button
 const couponButton = document.querySelector('.couponbutton')
+//initialize value for coupon code
 let couponCodeValue = ''
 
 
@@ -17,6 +19,8 @@ let kit
 let contract
 let artisans = []
 
+
+//connnect users wallet to dapp
 const connectCeloWallet = async function () {
   if (window.celo) {
     notification("⚠️ Please approve this DApp to use it.")
@@ -39,6 +43,7 @@ const connectCeloWallet = async function () {
   }
 }
 
+//approve transaction
 async function approve(_price) {
   const cUSDContract = new kit.web3.eth.Contract(erc20Abi, cUSDContractAddress)
   const result = await cUSDContract.methods
@@ -48,25 +53,54 @@ async function approve(_price) {
 }
 
 
-  couponButton.addEventListener('click', (e) => {
+// sets couponCodeValue variable to be equal to coupon code entered by users on click of couponcode button
+  couponButton.addEventListener('click', async (e) => {
     e.preventDefault()
     const couponCode = document.querySelector('.couponcode')
-    couponCodeValue = couponCode.value 
+    couponCodeValue = couponCode.value
+    const couponCodes =  await getCouponCodes()
+    const usedCodes =  await getUsedCodes()
+    
+    
+    if(usedCodes.includes(couponCodeValue)) {
+      notificationOff()
+      notification("Coupon code already used")
+    }
+    else if(couponCodes.includes(couponCodeValue)) {
+      notificationOff()
+      notification("Coupon code appplied successful. Enjoy discount on any hire")
+    }
+    else {
+      notificationOff()
+      notification("Invalid coupon code")
+    }
+    
   })
 
 
+  //get users balance
 const getBalance = async function () {
   const totalBalance = await kit.getTotalBalance(kit.defaultAccount)
   const cUSDBalance = totalBalance.cUSD.shiftedBy(-ERC20_DECIMALS).toFixed(2)
   document.querySelector("#balance").textContent = cUSDBalance
 }
 
+// function to call coupon codes from blockchain
 const getCouponCodes = async function() {
   const coupon = await contract.methods.getCouponCodes().call()
   return coupon
 }
 
+//gets used coupon codes
+const getUsedCodes = async function() {
+  const usedCodes = await contract.methods.getUsedCodes().call()
+  return usedCodes;
+}
 
+
+
+
+// get all registerd artisans
 const getArtisans = async function() {
   const _artisansLength = await contract.methods.getArtisansLength().call()
   const _artisans = []
@@ -90,6 +124,7 @@ const getArtisans = async function() {
   renderArtisans()
 }
 
+// renders artisan to the browser
 function renderArtisans() {
   document.getElementById("marketplace").innerHTML = ""
   artisans.forEach((_artisan) => {
@@ -100,6 +135,8 @@ function renderArtisans() {
   })
 }
 
+
+// HTML template for artisans details
 function artisanTemplate(_artisan) {
   return `
     <div class="card mb-4">
@@ -131,6 +168,8 @@ function artisanTemplate(_artisan) {
   `
 }
 
+
+// identicon template
 function identiconTemplate(_address) {
   const icon = blockies
     .create({
@@ -159,6 +198,7 @@ function notificationOff() {
   document.querySelector(".alert").style.display = "none"
 }
 
+// calls the function inside on windows load
 window.addEventListener("load", async () => {
   notification("⌛ Loading...")
   await connectCeloWallet()
@@ -167,6 +207,8 @@ window.addEventListener("load", async () => {
   notificationOff()
 });
 
+
+// write artisan to the blockchain
 document
   .querySelector("#newArtisanBtn")
   .addEventListener("click", async (e) => {
@@ -191,12 +233,13 @@ document
     getArtisans()
   })
 
+  // approves price for transaction
 document.querySelector("#marketplace").addEventListener("click", async (e) => {
   if (e.target.className.includes("hireBtn")) {
     const index = e.target.id
     notification("⌛ Waiting for payment approval...")
     try {
-      
+      //Approves amount that can be spent. Amount approved is not the same as amount spent or transferred
         await approve(artisans[index].price)
 
     } catch (error) {
@@ -204,8 +247,17 @@ document.querySelector("#marketplace").addEventListener("click", async (e) => {
     }
     notification(`⌛ Awaiting payment for "${artisans[index].name}"...`)
     try {
+      //gets couponArray from blockchain
       const couponArray = await getCouponCodes()
-      if(couponArray.includes(couponCodeValue)) {
+      const usedCodes = await getUsedCodes()
+      //checks if coupon codes entered by user is in couponArray and also not in usedCodes. If coupon code is in couponArray, hireArtisanForDiscount is called
+      //It also transfer the discount price to the artisan
+      if(couponArray.includes(couponCodeValue) && !usedCodes.includes(couponCodeValue)) {
+        //calls pushUsedCouponCode. This pushes valid code to usedCode array in the blockchain
+        await contract.methods
+        .pushUsedCouponCode(couponCodeValue)
+        .send({ from: kit.defaultAccount })
+
         const result = await contract.methods
         .hireArtisanForDiscount(index)
         .send({ from: kit.defaultAccount })
@@ -213,6 +265,8 @@ document.querySelector("#marketplace").addEventListener("click", async (e) => {
       getArtisans()
       getBalance()
       }
+      // if coupon code entered by user is not in couponArray.hireArtisan function is called instead
+      // transfers the non-discount price to the artisan
       else{
         const result = await contract.methods
         .hireArtisan(index)

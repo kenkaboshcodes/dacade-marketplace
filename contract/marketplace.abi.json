@@ -45,6 +45,19 @@
 		"type": "function"
 	},
 	{
+		"inputs": [],
+		"name": "getUsedCodes",
+		"outputs": [
+			{
+				"internalType": "string[]",
+				"name": "",
+				"type": "string[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
 		"inputs": [
 			{
 				"internalType": "uint256",
@@ -66,6 +79,19 @@
 			}
 		],
 		"name": "hireArtisanForDiscount",
+		"outputs": [],
+		"stateMutability": "payable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "_couponCodes",
+				"type": "string"
+			}
+		],
+		"name": "pushUsedCouponCode",
 		"outputs": [],
 		"stateMutability": "payable",
 		"type": "function"
@@ -114,6 +140,25 @@
 				"internalType": "uint256",
 				"name": "",
 				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "usedCodes",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
 			}
 		],
 		"stateMutability": "view",
